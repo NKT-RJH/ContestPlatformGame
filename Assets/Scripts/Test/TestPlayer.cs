@@ -7,16 +7,14 @@ public class TestPlayer : MonoBehaviour
 
 	private Rigidbody2D rigid;
 
-	public TestKeyLimit testKeyLimit;
+	public TestKeyLimit limit;
 	public TestGameManager gameManager;
 
-	public bool isGround = true;
-	private bool jump = false;
-	private bool jumpFlag = false;
-	private bool isPower = false;
-	public bool isWall = false;
-
-	private bool wallJump = false;
+	public bool isGround;
+	private bool jump;
+	private bool jumpFlag;
+	private bool isPower;
+	private bool isWall;
 
 	private Vector2 rayPath;
 
@@ -36,7 +34,7 @@ public class TestPlayer : MonoBehaviour
 			StartCoroutine(gameManager.Dead(true));
 		}
 
-		if (Input.GetKeyDown(KeyCode.Space) && isGround && testKeyLimit.GetCount(KeyCode.Space) > 0)
+		if (Input.GetKeyDown(KeyCode.Space) && (isGround || isWall) && limit.GetCount(KeyCode.Space) > 0)
 		{
 			jump = true;
 			jumpFlag = true;
@@ -44,22 +42,17 @@ public class TestPlayer : MonoBehaviour
 		if (Input.GetKeyUp(KeyCode.Space) && jump)
 		{
 			jump = false;
-			testKeyLimit.DiscountKey(KeyCode.Space);
+			limit.DiscountKey(KeyCode.Space);
 		}
 
-		if (Input.GetKeyUp(KeyCode.Space) && isWall && testKeyLimit.GetCount(KeyCode.Space) > 0)
+		float x = Input.GetAxisRaw("Horizontal");
+		if ((Input.GetKeyUp(KeyCode.LeftArrow) || Input.GetKeyUp(KeyCode.A)) && limit.GetCount(KeyCode.LeftArrow) > 0 && x <= 0)
 		{
-			wallJump = true;
-			testKeyLimit.DiscountKey(KeyCode.Space);
+			limit.DiscountKey(KeyCode.LeftArrow);
 		}
-
-		if (Input.GetKeyUp(KeyCode.LeftArrow) || Input.GetKeyUp(KeyCode.A) && testKeyLimit.GetCount(KeyCode.LeftArrow) > 0)
+		if ((Input.GetKeyUp(KeyCode.RightArrow) || Input.GetKeyUp(KeyCode.D)) && limit.GetCount(KeyCode.RightArrow) > 0 && x >= 0)
 		{
-			testKeyLimit.DiscountKey(KeyCode.LeftArrow);
-		}
-		if (Input.GetKeyUp(KeyCode.RightArrow) || Input.GetKeyUp(KeyCode.D) && testKeyLimit.GetCount(KeyCode.RightArrow) > 0)
-		{
-			testKeyLimit.DiscountKey(KeyCode.RightArrow);
+			limit.DiscountKey(KeyCode.RightArrow);
 		}
 	}
 
@@ -68,11 +61,11 @@ public class TestPlayer : MonoBehaviour
 		if (TestGameManager.dead) return;
 		if (gameManager.GameOver) return;
 
-		RaycastHit2D rayHit = Physics2D.Raycast(rigid.position, rayPath, 0.5f, LayerMask.GetMask("Ground")); //ray ½î±â
-		isGround = rayHit.collider != null;
+		RaycastHit2D groundRay = Physics2D.Raycast(rigid.position, rayPath, 0.5f, LayerMask.GetMask("Ground"));
+		isGround = groundRay.collider != null;
 
-		RaycastHit2D rayHit1 = Physics2D.Raycast(rigid.position, rayPath, 0.5f, LayerMask.GetMask("Power")); //ray ½î±â
-		if (rayHit1.collider != null)
+		RaycastHit2D boostRay = Physics2D.Raycast(rigid.position, rayPath, 0.5f, LayerMask.GetMask("Power"));
+		if (boostRay.collider != null)
 		{
 			isGround = true;
 			if (!isPower)
@@ -91,16 +84,16 @@ public class TestPlayer : MonoBehaviour
 		}
 
 		float x = Input.GetAxisRaw("Horizontal");
-		if (x < 0 && testKeyLimit.GetCount(KeyCode.LeftArrow) > 0)
+		if (x < 0 && limit.GetCount(KeyCode.LeftArrow) > 0)
 		{
 			rigid.velocity = new Vector2(x * speed, rigid.velocity.y);
 		}
-		else if (x > 0 && testKeyLimit.GetCount(KeyCode.RightArrow) > 0)
+		else if (x > 0 && limit.GetCount(KeyCode.RightArrow) > 0)
 		{
 			rigid.velocity = new Vector2(x * speed, rigid.velocity.y);
 		}
 
-		if (jumpFlag && isGround && testKeyLimit.GetCount(KeyCode.Space) > 0)
+		if (jumpFlag && isGround && limit.GetCount(KeyCode.Space) > 0)
 		{
 			rigid.velocity += Vector2.up * power;
 			isGround = false;
@@ -108,11 +101,10 @@ public class TestPlayer : MonoBehaviour
 		}
 
 
-		if (wallJump)
+		if (jumpFlag && !isGround & limit.GetCount(KeyCode.Space) > 0)
 		{
-			// º®³Ñ±â È½¼ö 2¹ø ÁÙ°í ¾ÆÁ÷ ¿Ï¼º ´ú µÊ!
 			rigid.velocity += Vector2.up * power;
-			wallJump = false;
+			jumpFlag = false;
 		}
 	}
 
@@ -138,6 +130,9 @@ public class TestPlayer : MonoBehaviour
 
 	private void OnCollisionExit2D(Collision2D collision)
 	{
+		if (TestGameManager.dead) return;
+		if (gameManager.GameOver) return;
+
 		if (!isGround && collision.gameObject.layer == 6)
 		{
 			isWall = false;
